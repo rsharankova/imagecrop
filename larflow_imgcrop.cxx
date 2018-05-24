@@ -62,7 +62,7 @@ int main( int nargs, char** argv ) {
     if ( img_v.size()==0 )
       continue;
     
-    std::vector<float> thresholds(3,10.0);
+    std::vector<float> thresholds(3,7.0);
     std::vector<float> occupancy(3,0.01);
     occupancy[2] = 0.002;
     std::vector<larcv::Particle> roi_v = generate_regions( 512, 512, img_v.front().meta(), img_v, 10, occupancy, thresholds, 100, -1 ); 
@@ -91,12 +91,29 @@ int main( int nargs, char** argv ) {
 	larcv::Image2D cropped = img.crop( roi.boundingbox_2d( img.meta().id() ) );	
 	ev_out->emplace( std::move(cropped) );
       }
-
+      const std::vector<larcv::Image2D> croppedimgs = ev_out->image2d_array();
       std::vector<larcv::Image2D> label_v;
       std::vector<larcv::Image2D> match_v;
       std::vector<larcv::Image2D> weight_v;      
+      for(int p=0; p<3; p++){
+	for(int i=0; i<2; i++){
+	  // make output label image
+	  larcv::Image2D label( croppedimgs.at(p).meta() );
+	  label.paint(-3000.0);
+	  // make output weight image
+	  larcv::Image2D weight( croppedimgs.at(p).meta() );
+	  weight.paint(0.0);
+	  // make visibility images
+	  larcv::Image2D match( croppedimgs.at(p).meta() );
+	  match.paint(0.0);
+	  label_v.emplace_back( std::move(label) );
+	  match_v.emplace_back( std::move(match) );
+	  weight_v.emplace_back( std::move(weight) );
+	}
+	
+      }
       make_cropped_label_image( ev_img_v->image2d_array(),ev_out->image2d_array(), ev_pix_v->image2d_array(), ev_vis_v->image2d_array(),
-      			 5.0, label_v, match_v, weight_v );
+      			 thresholds, label_v, match_v, weight_v );
 				
       ev_label->emplace( std::move( label_v ) );
       ev_match->emplace( std::move( match_v ) );

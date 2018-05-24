@@ -137,100 +137,92 @@ std::vector< larcv::Particle > generate_regions( const int rows, const int cols,
 }
 
 
-void make_cropped_label_image( const std::vector<larcv::Image2D>& origimgs,
+void make_cropped_label_image( const std::vector<larcv::Image2D>& srcimgs,
 			       const std::vector<larcv::Image2D>& croppedimgs,
 			       const std::vector<larcv::Image2D>& piximgs,
 			       const std::vector<larcv::Image2D>& visimgs,
-			       const float adcthreshold,
+			       const std::vector<float> adcthresholds,
 			       std::vector<larcv::Image2D>& labelimg_v, std::vector<larcv::Image2D>& matchimg_v,
 			       std::vector<larcv::Image2D>& weightimg_v ) {
   
-  // loop over cropped image range and label above threshold pixels
 
-  labelimg_v.clear();
-  matchimg_v.clear();
-  weightimg_v.clear();
-
-  int ip[3][2] = {{1,2},{0,2},{0,1}}; //for target images order
+  //std::cout << labelimg_v.size() << std::endl;
+  //std::cout << labelimg_v[0].meta().dump() << std::endl;
+  //std::cout << labelimg_v[0].pixel(0,0) << std::endl;
+  
+  int targetplanes[3][2] = {{1,2},{0,2},{0,1}}; //for target images order
   // loop over the planes
-  for (int p=0; p<3; p++) { //TEMP 
+  for (int p=0; p<3; p++) { 
+
     // get the adc image for the plane. the container stores all three planes. we grab plane p.
     const larcv::Image2D& adcimg    = croppedimgs.at(p);
     const larcv::ImageMeta& adcmeta = adcimg.meta();
+    const larcv::ImageMeta& srcmeta = srcimgs.at(p).meta();
+
+    const larcv::ImageMeta* target_meta[2];
+    target_meta[0] = &croppedimgs.at( targetplanes[p][0] ).meta();
+    target_meta[1] = &croppedimgs.at( targetplanes[p][1] ).meta();
 
     int count=0;
-    
-    for(int path=0; path<2; path++){
-      // make output label image
-      larcv::Image2D label( croppedimgs.at(p).meta() );
-      label.paint(0);
-      // make output weight image
-      larcv::Image2D weight( croppedimgs.at(p).meta() );
-      weight.paint(0);
-      // make visibility images
-      larcv::Image2D match( croppedimgs.at(p).meta() );
-      match.paint(0);
-            
-      // images where pixels contain pix label & visibility
-      const larcv::Image2D& piximg    = piximgs.at(2*p+path);
-      const larcv::ImageMeta& pixmeta = piximg.meta(); //original image size
-      const larcv::Image2D& ctarget   = croppedimgs.at(ip[p][path]);
-      const larcv::Image2D& target    = origimgs.at(ip[p][path]);
-
       
-      // loop over rows and columns of the cropped adc image, as it is a subset
-      for (size_t radc=0; radc<adcmeta.rows(); radc++) {
+    // loop over rows and columns of the cropped adc image, as it is a subset
+    for (size_t radc=0; radc<adcmeta.rows(); radc++) {
+      
+      float tick = adcmeta.pos_y( radc );
+      
+      int rid = srcmeta.row(tick);
+      
+      for (size_t cadc=0; cadc<adcmeta.cols(); cadc++) {
+	float wire = adcmeta.pos_x( cadc );
 	
-	// we have to translate to the bigger image as well
-	// we get the absolute coordinate value (tick,wire)
-	float tick = adcmeta.pos_y( radc );
+	int cid    = srcmeta.col(wire);	  
 	
-	// then go and get the row,col in the full adc image
-	int rid = pixmeta.row(tick);
+	// get the adc value
+	float adc = adcimg.pixel(radc,cadc);
 	
-	for (size_t cadc=0; cadc<adcmeta.cols(); cadc++) {
-	  // same thing for the x-axis (wires)
-	  float wire = adcmeta.pos_x( cadc );
+	// if below threshold, skip
+	//if ( adc<adcthresholds[p] )  continue;
 
-	  int cid    = pixmeta.col(wire);	  
-	  
-	  // get the adc value
-	  float adc = adcimg.pixel(radc,cadc);
-	  
-	  // if below threshold, skip, not interesting
-	  if ( adc<adcthreshold )  continue;
+	for(int path=0; path<2; path++){
+            
+	  //src images where pixels contain pix label & visibility
+	  const larcv::Image2D& piximg    = piximgs.at(2*p+path);
+	  const larcv::Image2D& visimg    = visimgs.at(targetplanes[p][path]);
 	  
 	  // get the label pixel
-	  int shifted = (int)piximg.pixel(rid,cid) + cid; // target col
-	  float targetwire = target.meta().pos_x(shifted);
-	  int ciid = -1;
-	  if( targetwire > ctarget.meta().min_x() && targetwire < ctarget.meta().max_x()){
-	    ciid = ctarget.meta().col(targetwire);
+	  float pix = piximg.pixel(rid,cid);
+	  float vis = visimg.pixel(rid,cid);
+	  float targetwire = wire + pix;
+
+	  if ( targetwire<target_meta[path]->min_x() || targetwire>=target_meta[path]->max_x() ) {
+	    // outside the target cropped image
+	    labelimg_v[2*p+path].set_pixel( radc, cadc, -3000.0 );
+	    matchimg_v[2*p+path].set_pixel( radc, cadc, 0.0 );
 	  }
-	  int vis = 0;
-	  if( ciid>-1 && ctarget.pixel(radc, ciid)> adcthreshold ) vis = 1;
-	  int pix = 0;
-	  if( ciid>-1 ) pix = ciid - cadc; 
-	  label.set_pixel( radc, cadc, pix );
-	  match.set_pixel( radc, cadc, vis );
-	  
+	  else {
+	    // inside. need to adjust the flow.
+	    int target_col = target_meta[path]->col( targetwire );
+	    float target_adc = croppedimgs.at( targetplanes[p][path] ).pixel( radc, target_col );
+
+	    float target_pix = target_col - cadc;
+	    labelimg_v[2*p+path].set_pixel( radc, cadc, target_pix );
+	    matchimg_v[2*p+path].set_pixel( radc, cadc, 1.0 );
+
+	    if ( target_adc<adcthresholds[ targetplanes[p][path] ] )
+	      matchimg_v[2*p+path].set_pixel( radc, cadc, 0.0 );
+
+	  }
+	  //debug
 	  //count++;
 	  //if(count> 10) continue;
-	  //std::cout << radc <<","<< cadc << " " << wire <<" "<< rid <<", "<< cid  <<" "<< pix <<" "<< shifted  << std::endl;
-	  //std::cout << target.meta().min_x() <<" "<< target.meta().max_x()  << std::endl;
-	  //std::cout << cadc  <<" "<< cid  <<" "<< shifted-cid <<" "<< shifted  << " "<< ciid<< std::endl;
-	  //std::cout << vis <<" " << pix << std::endl;
+	  //std::cout << vis <<" " << pix <<" "<< target_pix << std::endl;
 
 	  
-	}//end of col loop
-      }//end of row loop      
+	}//end of path loop
+
+      }//end of col loop      
       
-      /// weight image tbd
-      
-      labelimg_v.emplace_back(  std::move(label)  );
-      weightimg_v.emplace_back( std::move(weight) );
-      matchimg_v.emplace_back(  std::move(match)  );
-    }// end of path loop
+    }// end of row loop
 
   }// end of plane loop
 

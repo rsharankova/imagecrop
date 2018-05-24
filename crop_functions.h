@@ -16,8 +16,8 @@ std::vector< larcv::Particle > generate_regions( const int rows, const int cols,
 					    const int num_regions, const std::vector<float>& min_occupany_fraction, const std::vector<float>& thresholds,
 					    const int maxattempts, const int randseed );
 
-void make_cropped_label_image( const std::vector<larcv::Image2D>& origimgs,
+void make_cropped_label_image( const std::vector<larcv::Image2D>& srcimgs,
 			       const std::vector<larcv::Image2D>& croppedimgs, const std::vector<larcv::Image2D>& piximgs, const std::vector<larcv::Image2D>& visimgs,
-			       const float adcthreshold,
+			       const std::vector<float> adcthresholds,
 			       std::vector<larcv::Image2D>& labelimg_v, std::vector<larcv::Image2D>& matchimg_v, std::vector<larcv::Image2D>& weightimg_v );
 
