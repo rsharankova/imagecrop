@@ -34,11 +34,11 @@ def main(argv=None):
 
   files = rundata['files']
   idx   = rundata['indexes']
-  #outfiles = ['_'.join(['/media/hdd1/rshara01/larflow/train_cropped/larcv_test', '%03d'%(i)]) for i in idx ]
-  outfiles = ['_'.join(['/media/hdd1/rshara01/larflow/cropper/files/larcv_test', '%03d'%(i)]) for i in idx ]
+  outfiles = ['_'.join(['/media/hdd1/rshara01/larflow/train_cropped/larcv', '%03d'%(i)]) for i in idx ]
+  #outfiles = ['_'.join(['/media/hdd1/rshara01/larflow/imagecrop/files/larcv_test4', '%03d'%(i)]) for i in idx ]
   outfiles = ['.'.join([out, 'root']) for out in outfiles]
 
-  for a in [0]:
+  for a in xrange(5): #[0]:
     args = "%s %s"%(files[a],outfiles[a])
     print args
     os.system("./bin/larflow_imgcrop %s"%(args))

@@ -196,7 +196,7 @@ void make_cropped_label_image( const std::vector<larcv::Image2D>& srcimgs,
 
 	  if ( targetwire<target_meta[path]->min_x() || targetwire>=target_meta[path]->max_x() ) {
 	    // outside the target cropped image
-	    labelimg_v[2*p+path].set_pixel( radc, cadc, -3000.0 );
+	    labelimg_v[2*p+path].set_pixel( radc, cadc, 0.0 );
 	    matchimg_v[2*p+path].set_pixel( radc, cadc, 0.0 );
 	  }
 	  else {
@@ -204,10 +204,11 @@ void make_cropped_label_image( const std::vector<larcv::Image2D>& srcimgs,
 	    int target_col = target_meta[path]->col( targetwire );
 	    float target_adc = croppedimgs.at( targetplanes[p][path] ).pixel( radc, target_col );
 
-	    float target_pix = target_col - cadc;
+	    float target_pix = target_col - (float)(cadc);
+	    //std::cout << "inside "<< targetwire <<" "<<target_col <<" "<< target_pix<<std::endl;
 	    labelimg_v[2*p+path].set_pixel( radc, cadc, target_pix );
 	    matchimg_v[2*p+path].set_pixel( radc, cadc, 1.0 );
-
+	    //std::cout << labelimg_v[2*p+path].pixel(radc, cadc) <<" " << matchimg_v[2*p+path].pixel(radc,cadc) <<" fuck you" << std::endl;
 	    if ( target_adc<adcthresholds[ targetplanes[p][path] ] )
 	      matchimg_v[2*p+path].set_pixel( radc, cadc, 0.0 );
 
@@ -215,7 +216,7 @@ void make_cropped_label_image( const std::vector<larcv::Image2D>& srcimgs,
 	  //debug
 	  //count++;
 	  //if(count> 10) continue;
-	  //std::cout << vis <<" " << pix <<" "<< target_pix << std::endl;
+	  //std::cout << labelimg_v[2*p+path].pixel(radc, cadc) <<" " << matchimg_v[2*p+path].pixel(radc,cadc) <<" fuck you" << std::endl;
 
 	  
 	}//end of path loop

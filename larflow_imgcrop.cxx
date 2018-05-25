@@ -37,7 +37,7 @@ int main( int nargs, char** argv ) {
   outlarcv.initialize();
   
   int nentries = dataco.get_nentries( "larcv" );
-  nentries = 1;
+  //nentries = 1;
   
   for ( int i=0; i<nentries; i++) {
     dataco.goto_entry(i,"larcv");
@@ -99,7 +99,7 @@ int main( int nargs, char** argv ) {
 	for(int i=0; i<2; i++){
 	  // make output label image
 	  larcv::Image2D label( croppedimgs.at(p).meta() );
-	  label.paint(-3000.0);
+	  label.paint(0.0);
 	  // make output weight image
 	  larcv::Image2D weight( croppedimgs.at(p).meta() );
 	  weight.paint(0.0);
