@@ -37,7 +37,7 @@ int main( int nargs, char** argv ) {
   outlarcv.initialize();
   
   int nentries = dataco.get_nentries( "larcv" );
-  //nentries = 1;
+  nentries = 1;
   
   for ( int i=0; i<nentries; i++) {
     dataco.goto_entry(i,"larcv");
@@ -65,7 +65,14 @@ int main( int nargs, char** argv ) {
     std::vector<float> thresholds(3,7.0);
     std::vector<float> occupancy(3,0.01);
     occupancy[2] = 0.002;
-    std::vector<larcv::Particle> roi_v = generate_regions( 512, 512, img_v.front().meta(), img_v, 10, occupancy, thresholds, 100, -1 ); 
+    //generate images for overlap
+    std::vector<larcv::Image2D> previmg_v;
+    for(int p=0; p<3; p++){
+      larcv::Image2D previmg( img_v.at(p).meta() );
+      previmg.paint(0.0);
+      previmg_v.emplace_back( std::move(previmg) );
+    }
+    std::vector<larcv::Particle> roi_v = generate_regions( 512, 512, img_v.front().meta(), img_v, 10, occupancy, thresholds, 100, -1 , previmg_v); 
 
     //std::cout << "Number of ROIs returned: " << roi_v.size() << std::endl;
     
@@ -99,7 +106,7 @@ int main( int nargs, char** argv ) {
 	for(int i=0; i<2; i++){
 	  // make output label image
 	  larcv::Image2D label( croppedimgs.at(p).meta() );
-	  label.paint(0.0);
+	  label.paint(-3000.0);
 	  // make output weight image
 	  larcv::Image2D weight( croppedimgs.at(p).meta() );
 	  weight.paint(0.0);
@@ -112,13 +119,17 @@ int main( int nargs, char** argv ) {
 	}
 	
       }
+      bool skip=false;
       make_cropped_label_image( ev_img_v->image2d_array(),ev_out->image2d_array(), ev_pix_v->image2d_array(), ev_vis_v->image2d_array(),
-      			 thresholds, label_v, match_v, weight_v );
+				thresholds, label_v, match_v, weight_v, skip );
 				
       ev_label->emplace( std::move( label_v ) );
       ev_match->emplace( std::move( match_v ) );
       //ev_weight->emplace( std::move( weight_v ) );
-    
+
+      //check skip
+      std::cout << skip <<std::endl;
+      if(skip==true) {std::cout<<"skipping crop "<< std::endl; continue;}
       // set the entry number
       outlarcv.set_id( run, subrun, event*10 + iroi );
 
