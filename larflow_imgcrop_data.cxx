@@ -60,7 +60,14 @@ int main( int nargs, char** argv ) {
     std::vector<float> thresholds(3,10.0);
     std::vector<float> occupancy(3,0.01);
     occupancy[2] = 0.002;
-    std::vector<larcv::Particle> roi_v = generate_regions( 512, 512, img_v.front().meta(), img_v, 10, occupancy, thresholds, 100, -1 );
+    std::vector<larcv::Image2D> previmg_v;
+    for(int p=0; p<3; p++){
+      larcv::Image2D previmg( img_v.at(p).meta() );
+      previmg.paint(0.0);
+      previmg_v.emplace_back( std::move(previmg) );
+    }
+    
+    std::vector<larcv::Particle> roi_v = generate_regions( 512, 512, img_v.front().meta(), img_v, 10, occupancy, thresholds, 100, -1, previmg_v );
 
     std::cout << "Number of ROIs returned: " << roi_v.size() << std::endl;
 

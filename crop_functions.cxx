@@ -1,4 +1,4 @@
-1;95;0c#include "crop_functions.h"
+#include "crop_functions.h"
 #include "TRandom3.h"
 
 // larlite
@@ -95,6 +95,7 @@ std::vector< larcv::Particle > generate_regions( const int rows, const int cols,
     int planes_passing = 0;
     int planes_overlap = 0;
     std::vector<float> occfrac(3,0);
+
     for (int p=0; p<3; p++) {
       const larcv::Image2D& src = src_v[p];
       larcv::Image2D& previmg = previmg_v[p];
@@ -114,11 +115,8 @@ std::vector< larcv::Particle > generate_regions( const int rows, const int cols,
       //std::cout <<"plane "<< p << " occupancy frac " << occfrac[p] << planes_passing << std::endl;
       if( float(overlap)/float(rows*cols)>0.5)
 	planes_overlap++;
-      std::cout <<"overlapping planes: "<< overlap <<" "<< planes_overlap << std::endl;
+      //std::cout <<"plane: "<< p <<" overlap "<< overlap <<" "<< float(overlap)/float(rows*cols) <<" overlapping planes: "<< planes_overlap << std::endl;
     } 
-    //std::cout <<"overlapping planes: "<< planes_overlap << std::endl;
-    std::cout <<"overlapping planes: "<< previmg_v[0].pixel(0,0) << std::endl;
-
     
     if ( planes_passing==src_v.size() && planes_overlap==0 ) {
       // create bounding boxes and ROI
@@ -132,14 +130,21 @@ std::vector< larcv::Particle > generate_regions( const int rows, const int cols,
 			       (larcv::DistanceUnit_t)(larcv::kUnitWireTime));
 	//create bb
 	roi.boundingbox_2d( meta ,meta.id() );
-	//std::cout << meta.dump() << std::endl;
-	previmg_v[p].clear();
+
+	//fill in previmg
+	//previmg_v[p].clear();
+	for (int r=rowrange[0]; r<rowrange[1]; r++) {
+	  for (int c=colranges[p][0]; c<colranges[p][1]; c++) {
+	    previmg_v[p].set_pixel(r,c,1.0);
+	  }
+	}
+	
       }
       
       roi_v.emplace_back( std::move(roi) );
     }
     numattempts++;
-    // std::cout << "attempt " << numattempts << " planes_passing=" << planes_passing << std::endl;
+    //std::cout << "attempt " << numattempts << " planes_passing=" << planes_passing << std::endl;
     // for (int p=0; p<3; p++)
     //   std::cout << "  occupancy plane " << p << ": " << occfrac[p] << std::endl;
     
@@ -155,13 +160,9 @@ void make_cropped_label_image( const std::vector<larcv::Image2D>& srcimgs,
 			       const std::vector<larcv::Image2D>& visimgs,
 			       const std::vector<float> adcthresholds,
 			       std::vector<larcv::Image2D>& labelimg_v, std::vector<larcv::Image2D>& matchimg_v,
-			       std::vector<larcv::Image2D>& weightimg_v , bool& skip) {
+			       std::vector<larcv::Image2D>& wireidimg_v , bool& skip) {
   
 
-  //std::cout << labelimg_v.size() << std::endl;
-  //std::cout << labelimg_v[0].meta().dump() << std::endl;
-  //std::cout << labelimg_v[0].pixel(0,0) << std::endl;
-  
   int targetplanes[3][2] = {{1,2},{0,2},{0,1}}; //for target images order
   // loop over the planes
   for (int p=0; p<3; p++) { 
@@ -177,8 +178,6 @@ void make_cropped_label_image( const std::vector<larcv::Image2D>& srcimgs,
     target_meta[0] = &croppedimgs.at( targetplanes[p][0] ).meta();
     target_meta[1] = &croppedimgs.at( targetplanes[p][1] ).meta();
 
-    int count=0;
-      
     // loop over rows and columns of the cropped adc image, as it is a subset
     for (size_t radc=0; radc<adcmeta.rows(); radc++) {
       
@@ -208,6 +207,9 @@ void make_cropped_label_image( const std::vector<larcv::Image2D>& srcimgs,
 	  float vis = visimg.pixel(rid,cid);
 	  float targetwire = wire + pix;
 
+	  //fill original wire id
+	  wireidimg_v[2*p+path].set_pixel( radc, cadc, wire);
+	  
 	  if ( targetwire<target_meta[path]->min_x() || targetwire>=target_meta[path]->max_x() ) {
 	    // outside the target cropped image
 	    labelimg_v[2*p+path].set_pixel( radc, cadc, -3000.0 );
@@ -219,23 +221,17 @@ void make_cropped_label_image( const std::vector<larcv::Image2D>& srcimgs,
 	    float target_adc = croppedimgs.at( targetplanes[p][path] ).pixel( radc, target_col );
 
 	    float target_pix = target_col - (float)(cadc);
-	    //std::cout << "inside "<< targetwire <<" "<<target_col <<" "<< target_pix<<std::endl;
 	    labelimg_v[2*p+path].set_pixel( radc, cadc, target_pix );
 	    matchimg_v[2*p+path].set_pixel( radc, cadc, 1.0 );
-	    //std::cout << labelimg_v[2*p+path].pixel(radc, cadc) <<" " << matchimg_v[2*p+path].pixel(radc,cadc) <<" fuck you" << std::endl;
+
 	    if ( target_adc<adcthresholds[ targetplanes[p][path] ] )
 	      matchimg_v[2*p+path].set_pixel( radc, cadc, 0.0 );
 
 	  }
-	  //zero visibility if flow is weird
+	  //zero visibility if flow is off
 	  if(labelimg_v[2*p+path].pixel(radc,cadc)<=-3000.0) matchimg_v[2*p+path].set_pixel( radc, cadc, 0.0 );
 	  //count visible pixels
 	  if(matchimg_v[2*p+path].pixel(radc,cadc)>0) nonzero[path]++;
-	  //debug
-	  //count++;
-	  //if(count> 10) continue;
-	  //std::cout << labelimg_v[2*p+path].pixel(radc, cadc) <<" " << matchimg_v[2*p+path].pixel(radc,cadc) <<" fuck you" << std::endl;
-
 	  
 	}//end of path loop
 
@@ -244,7 +240,7 @@ void make_cropped_label_image( const std::vector<larcv::Image2D>& srcimgs,
     }// end of row loop
     //skip this image if less than 20 visible pixels in y
     //std::cout<< "plane: "<< p <<" nonzero vis: "<< nonzero[0] <<", "<<nonzero[1] << std::endl;
-    if(p==2 && (nonzero[0]<50 || nonzero[1]<50)) skip=true;
+    if(p==2 && (nonzero[0]<20 || nonzero[1]<20)) skip=true;
   }// end of plane loop
 
 

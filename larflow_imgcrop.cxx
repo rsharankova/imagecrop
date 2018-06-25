@@ -37,7 +37,7 @@ int main( int nargs, char** argv ) {
   outlarcv.initialize();
   
   int nentries = dataco.get_nentries( "larcv" );
-  nentries = 1;
+  //nentries = 5;
   
   for ( int i=0; i<nentries; i++) {
     dataco.goto_entry(i,"larcv");
@@ -65,6 +65,7 @@ int main( int nargs, char** argv ) {
     std::vector<float> thresholds(3,7.0);
     std::vector<float> occupancy(3,0.01);
     occupancy[2] = 0.002;
+
     //generate images for overlap
     std::vector<larcv::Image2D> previmg_v;
     for(int p=0; p<3; p++){
@@ -72,69 +73,73 @@ int main( int nargs, char** argv ) {
       previmg.paint(0.0);
       previmg_v.emplace_back( std::move(previmg) );
     }
+
     std::vector<larcv::Particle> roi_v = generate_regions( 512, 512, img_v.front().meta(), img_v, 10, occupancy, thresholds, 100, -1 , previmg_v); 
 
     //std::cout << "Number of ROIs returned: " << roi_v.size() << std::endl;
     
     // crop and save
-    int nroi = roi_v.size();
-    if ( nroi>10 )
-      nroi = 10;
-    for ( int iroi=0; iroi<nroi; iroi++) {
+    int nroi = 0;
+
+    for ( int iroi=0; iroi<roi_v.size(); iroi++) {
+      if ( nroi>10 ) break;
 
       // set the output event container
       larcv::EventImage2D* ev_out    = (larcv::EventImage2D*)outlarcv.get_data( "image2d", "adc" );
       larcv::EventImage2D* ev_label  = (larcv::EventImage2D*)outlarcv.get_data( "image2d", "label" );
       larcv::EventImage2D* ev_match  = (larcv::EventImage2D*)outlarcv.get_data( "image2d", "match" );      
-      //larcv::EventImage2D* ev_weight = (larcv::EventImage2D*)outlarcv.get_data( "image2d", "weight" );
+      larcv::EventImage2D* ev_wireid = (larcv::EventImage2D*)outlarcv.get_data( "image2d", "wireid" );
 
       larcv::Particle& roi = roi_v.at(iroi);
 
       //std::cout << roi.dump() << std::endl;
       
       // crop the image
+      std::vector<larcv::Image2D> croppedimgs;
       for ( auto const& img : img_v ) {
 
 	larcv::Image2D cropped = img.crop( roi.boundingbox_2d( img.meta().id() ) );	
-	ev_out->emplace( std::move(cropped) );
+	croppedimgs.emplace_back( std::move(cropped) );
       }
-      const std::vector<larcv::Image2D> croppedimgs = ev_out->image2d_array();
       std::vector<larcv::Image2D> label_v;
       std::vector<larcv::Image2D> match_v;
-      std::vector<larcv::Image2D> weight_v;      
+      std::vector<larcv::Image2D> wireid_v;      
       for(int p=0; p<3; p++){
 	for(int i=0; i<2; i++){
 	  // make output label image
 	  larcv::Image2D label( croppedimgs.at(p).meta() );
 	  label.paint(-3000.0);
 	  // make output weight image
-	  larcv::Image2D weight( croppedimgs.at(p).meta() );
-	  weight.paint(0.0);
+	  larcv::Image2D wireid( croppedimgs.at(p).meta() );
+	  wireid.paint(-1.0);
 	  // make visibility images
 	  larcv::Image2D match( croppedimgs.at(p).meta() );
 	  match.paint(0.0);
+	  //
 	  label_v.emplace_back( std::move(label) );
 	  match_v.emplace_back( std::move(match) );
-	  weight_v.emplace_back( std::move(weight) );
+	  wireid_v.emplace_back( std::move(wireid) );
 	}
 	
       }
       bool skip=false;
-      make_cropped_label_image( ev_img_v->image2d_array(),ev_out->image2d_array(), ev_pix_v->image2d_array(), ev_vis_v->image2d_array(),
-				thresholds, label_v, match_v, weight_v, skip );
+      make_cropped_label_image( ev_img_v->image2d_array(), croppedimgs, ev_pix_v->image2d_array(), ev_vis_v->image2d_array(),
+				thresholds, label_v, match_v, wireid_v, skip );
 				
+      //std::cout << label_v.size() <<" "<<match_v.size() <<" "<< croppedimgs.size()<< " "<< skip << std::endl;
+      //check skip
+      if(skip==true) { continue;}
       ev_label->emplace( std::move( label_v ) );
       ev_match->emplace( std::move( match_v ) );
-      //ev_weight->emplace( std::move( weight_v ) );
+      ev_out->emplace( std::move( croppedimgs ));
+      ev_wireid->emplace( std::move( wireid_v ) );
 
-      //check skip
-      std::cout << skip <<std::endl;
-      if(skip==true) {std::cout<<"skipping crop "<< std::endl; continue;}
-      // set the entry number
+      // set the entry number      
       outlarcv.set_id( run, subrun, event*10 + iroi );
 
       outlarcv.save_entry();
-      
+
+      nroi++;
     }
     
   }
