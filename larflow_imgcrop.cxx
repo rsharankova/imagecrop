@@ -62,9 +62,12 @@ int main( int nargs, char** argv ) {
     if ( img_v.size()==0 )
       continue;
     
-    std::vector<float> thresholds(3,7.0);
-    std::vector<float> occupancy(3,0.01);
-    occupancy[2] = 0.002;
+    std::vector<float> thresholds(3,10.0);
+    int target_occupied_pix = 1000;
+    float target_occupancy  = float(target_occupied_pix)/float(512*832);
+    std::vector<float> occupancy(3,target_occupancy);
+    //std::vector<float> occupancy(3,0.01);
+    //occupancy[2] = 0.002;
 
     //generate images for overlap
     std::vector<larcv::Image2D> previmg_v;
@@ -74,7 +77,7 @@ int main( int nargs, char** argv ) {
       previmg_v.emplace_back( std::move(previmg) );
     }
 
-    std::vector<larcv::Particle> roi_v = generate_regions( 512, 512, img_v.front().meta(), img_v, 10, occupancy, thresholds, 100, -1 , previmg_v); 
+    std::vector<larcv::Particle> roi_v = generate_regions( 512, 832, img_v.front().meta(), img_v, 10, occupancy, thresholds, 200, -1 , previmg_v); 
 
     //std::cout << "Number of ROIs returned: " << roi_v.size() << std::endl;
     
@@ -128,7 +131,21 @@ int main( int nargs, char** argv ) {
 				
       //std::cout << label_v.size() <<" "<<match_v.size() <<" "<< croppedimgs.size()<< " "<< skip << std::endl;
       //check skip
-      if(skip==true) { continue;}
+      bool goodcrop = true;
+      for ( int i=0; i<6; i++) {
+	if ( label_v[i].meta().cols()!=832 || label_v[i].meta().rows()!=512
+	     || match_v[i].meta().cols()!=832 || match_v[i].meta().rows()!=512
+	     || wireid_v[i].meta().cols()!=832 || wireid_v[i].meta().rows()!=512)
+	  goodcrop = false;
+      }
+      for ( int i=0; i<3; i++) {
+	if ( croppedimgs[i].meta().cols()!=832 || croppedimgs[i].meta().rows()!=512)
+	  goodcrop = false;
+      }
+      
+      if(skip==true) continue;
+      if(goodcrop==false) continue;
+
       ev_label->emplace( std::move( label_v ) );
       ev_match->emplace( std::move( match_v ) );
       ev_out->emplace( std::move( croppedimgs ));
